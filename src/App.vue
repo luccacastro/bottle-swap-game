@@ -66,7 +66,7 @@ onMounted(() => {
 
 <template>
   <div id="app">
-    <header class="app-header">
+    <header class="app-header" :class="{ 'has-sidebar': gameMode }">
       <h1 class="app-title">Bottle Pattern Puzzle</h1>
       <p class="app-subtitle">Arrange the wine, beer & spirit bottles to match the hidden pattern</p>
     </header>
@@ -129,6 +129,11 @@ body {
   padding: 2rem 1rem;
   background: hsl(224 71% 4%);
   border-bottom: 1px solid hsl(215 27.9% 16.9%);
+  transition: margin-right 0.3s ease-in-out;
+}
+
+.app-header.has-sidebar {
+  margin-right: 320px;
 }
 
 .app-title {
@@ -189,6 +194,10 @@ html {
 @media (max-width: 640px) {
   .app-header {
     padding: 1.5rem 1rem;
+  }
+  
+  .app-header.has-sidebar {
+    margin-right: 280px;
   }
   
   .app-title {
