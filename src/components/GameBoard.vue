@@ -50,8 +50,9 @@
     </div>
 
     <div class="action-buttons" v-if="canSwap">
-      <button class="swap-button" @click="performSwap">
-        Swap Bottles (Enter)
+      <button class="swap-button" @click="performSwap" :disabled="isSwapping">
+        <span v-if="isSwapping">Swapping...</span>
+        <span v-else>Swap Bottles (Enter)</span>
       </button>
     </div>
 
@@ -141,6 +142,7 @@ const swapCount = ref(0);
 const feedback = ref(null);
 const gameWon = ref(false);
 const showTutorialModal = ref(false);
+const isSwapping = ref(false);
 const bottleRefs = ref([]);
 
 const DEBUG_MODE = ref(import.meta.env.DEV);
@@ -151,7 +153,7 @@ const { playSwap, playSubmit, playCorrect, playWin } = useSounds();
 
 // Computed properties
 const canSwap = computed(() => {
-  return selectedBottles.value.length === 2 && !gameWon.value;
+  return selectedBottles.value.length === 2 && !gameWon.value && !isSwapping.value;
 });
 
 const correctBottlesCount = computed(() => {
@@ -185,12 +187,16 @@ const initializeGame = () => {
   swapCount.value = 0;
   feedback.value = null;
   gameWon.value = false;
+  isSwapping.value = false;
   
   // Initial state - counter will be shown in the header
 };
 
 // Handle bottle selection - now supports two-step swap process
 const handleBottleSelect = (index) => {
+  // Prevent selection during animations
+  if (isSwapping.value) return;
+  
   if (selectedBottles.value.length === 0) {
     // First selection
     selectedBottles.value = [index];
@@ -202,9 +208,15 @@ const handleBottleSelect = (index) => {
       // Second selection - add to swap queue
       selectedBottles.value = [selectedBottles.value[0], index];
     }
-  } else {
-    // Already have two selected, start new selection
-    selectedBottles.value = [index];
+  } else if (selectedBottles.value.length === 2) {
+    // If clicking an already selected bottle, deselect it
+    if (selectedBottles.value.includes(index)) {
+      // Remove this bottle from selection
+      selectedBottles.value = selectedBottles.value.filter(i => i !== index);
+    } else {
+      // If clicking a different bottle, start new selection
+      selectedBottles.value = [index];
+    }
   }
 };
 
@@ -213,8 +225,12 @@ const handleBottleSelect = (index) => {
 const performSwap = async () => {
   if (selectedBottles.value.length !== 2) return;
   if (gameWon.value) return;
+  if (isSwapping.value) return; // Prevent multiple simultaneous swaps
   
   const [index1, index2] = selectedBottles.value;
+  
+  // Set swapping state to disable interactions
+  isSwapping.value = true;
   
   console.log('Swapping bottles:', index1, index2);
   console.log('Before swap:', bottles.value[index1].color, bottles.value[index2].color);
@@ -263,6 +279,8 @@ const performSwap = async () => {
   // Auto-check if pattern matches after swap
   setTimeout(async () => {
     await autoCheckPattern();
+    // Re-enable interactions after everything is complete
+    isSwapping.value = false;
   }, 500); // Give time for animation to finish
 };
 
@@ -368,7 +386,7 @@ onUnmounted(() => {
 
 // Handle keyboard input
 const handleKeydown = (event) => {
-  if (event.key === 'Enter' && canSwap.value) {
+  if (event.key === 'Enter' && canSwap.value && !isSwapping.value) {
     event.preventDefault();
     performSwap();
   }
@@ -499,6 +517,17 @@ watch(() => props.gameMode, () => {
 .swap-button:focus-visible {
   outline: 2px solid hsl(142.1 76.2% 36.3%);
   outline-offset: 2px;
+}
+
+.swap-button:disabled {
+  background: hsl(215.4 16.3% 25%);
+  color: hsl(215.4 16.3% 50%);
+  cursor: not-allowed;
+  border: 1px solid hsl(215 27.9% 16.9%);
+}
+
+.swap-button:disabled:hover {
+  background: hsl(215.4 16.3% 25%);
 }
 
 .try-again-btn {

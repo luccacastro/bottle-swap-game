@@ -54,13 +54,18 @@ export function useAnimations() {
     });
   };
 
-  // Set selection state - immediate
+  // Set selection state - immediate and forceful
   const setSelectionState = (element, isSelected) => {
     if (!element) return;
 
+    // Kill any running animations on this element first
+    gsap.killTweensOf(element);
+    
+    // Set the state immediately
     gsap.set(element, {
       scale: isSelected ? 1.15 : 1,
-      y: isSelected ? -12 : 0
+      y: isSelected ? -12 : 0,
+      rotation: 0 // Ensure rotation is reset
     });
   };
 

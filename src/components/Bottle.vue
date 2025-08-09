@@ -156,19 +156,10 @@ const bottleColors = computed(() => {
 let isHovered = false;
 
 // Handle click events
-const handleClick = async () => {
+const handleClick = () => {
   // Always emit select and let GameBoard handle the logic
+  // Don't play animations here - let the watch effect handle visual updates
   emit('select');
-  
-  if (props.isSelected) {
-    // Play deselect feedback
-    await deselectAnimation(bottleRef.value);
-    playDeselect();
-  } else {
-    // Play select feedback
-    await selectAnimation(bottleRef.value);
-    playSelect();
-  }
 };
 
 // Handle hover events
@@ -218,11 +209,26 @@ onMounted(async () => {
 });
 
 // Watch for selection changes
-watch(() => props.isSelected, (newValue) => {
+watch(() => props.isSelected, async (newValue, oldValue) => {
   if (bottleRef.value) {
+    // Ensure DOM is updated first
+    await nextTick();
+    
+    // Set the visual state immediately and forcefully
     setSelectionState(bottleRef.value, newValue);
+    
+    // Play appropriate sound and animation
+    if (newValue && !oldValue) {
+      // Becoming selected
+      selectAnimation(bottleRef.value);
+      playSelect();
+    } else if (!newValue && oldValue) {
+      // Becoming deselected
+      deselectAnimation(bottleRef.value);
+      playDeselect();
+    }
   }
-});
+}, { flush: 'post' }); // Ensure this runs after DOM updates
 
 // Expose methods for parent components
 defineExpose({
@@ -265,7 +271,6 @@ defineExpose({
 
 .selected .bottle-svg {
   filter: drop-shadow(0 0 12px var(--liquid)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
-  transform: scale(1.05);
 }
 
 /* Mobile touch optimizations */
