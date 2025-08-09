@@ -11,7 +11,7 @@
       >
         <div class="mode-number">{{ mode }}</div>
         <div class="mode-label">bottles</div>
-        <div class="mode-penalty">-{{ modePenalties[mode] }} per move</div>
+        <div class="mode-difficulty">{{ getDifficultyText(mode) }}</div>
       </button>
     </div>
   </div>
@@ -30,10 +30,18 @@ const props = defineProps({
 const emit = defineEmits(['select-mode']);
 
 const gameModes = Object.keys(GAME_MODES).map(Number);
-const modePenalties = MODE_PENALTIES;
 
 const selectMode = (mode) => {
   emit('select-mode', mode);
+};
+
+const getDifficultyText = (mode) => {
+  const difficulties = {
+    4: 'Easy',
+    5: 'Medium', 
+    6: 'Hard'
+  };
+  return difficulties[mode] || 'Normal';
 };
 </script>
 
@@ -49,16 +57,17 @@ const selectMode = (mode) => {
 }
 
 .mode-title {
-  font-size: 2rem;
+  font-size: 1.875rem;
   font-weight: 600;
-  color: #f8fafc;
+  color: hsl(213 31% 91%);
   margin: 0;
   text-align: center;
+  line-height: 1.2;
 }
 
 .mode-options {
   display: flex;
-  gap: 1.5rem;
+  gap: 1rem;
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -68,60 +77,63 @@ const selectMode = (mode) => {
   flex-direction: column;
   align-items: center;
   padding: 1.5rem;
-  border: 2px solid #475569;
-  border-radius: 12px;
-  background: rgba(30, 41, 59, 0.5);
-  color: #f1f5f9;
+  border: 1px solid hsl(215 27.9% 16.9%);
+  border-radius: 0.75rem;
+  background: hsl(217.2 32.6% 17.5%);
+  color: hsl(213 31% 91%);
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 120px;
-  backdrop-filter: blur(8px);
+  transition: all 0.15s ease-in-out;
+  min-width: 7.5rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
 }
 
 .mode-button:hover {
-  border-color: #64748b;
-  background: rgba(30, 41, 59, 0.7);
-  transform: translateY(-2px);
+  border-color: hsl(215 27.9% 25%);
+  background: hsl(217.2 32.6% 25%);
+  box-shadow: 0 6px 10px -1px rgb(0 0 0 / 0.4), 0 4px 6px -2px rgb(0 0 0 / 0.4);
 }
 
 .mode-button.selected {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  border-color: hsl(142.1 76.2% 36.3%);
+  background: hsl(142.1 76.2% 36.3%);
+  color: hsl(0 0% 100%);
 }
 
 .mode-number {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
-  color: #3b82f6;
+  color: hsl(213 31% 91%);
   line-height: 1;
   margin-bottom: 0.5rem;
 }
 
 .mode-label {
-  font-size: 0.9rem;
-  color: #94a3b8;
-  margin-bottom: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.mode-penalty {
-  font-size: 0.8rem;
-  color: #64748b;
+  font-size: 0.875rem;
+  color: hsl(215.4 16.3% 65%);
+  margin-bottom: 0.25rem;
+  text-transform: lowercase;
+  letter-spacing: 0.025em;
   font-weight: 500;
 }
 
+.mode-difficulty {
+  font-size: 0.75rem;
+  color: hsl(215.4 16.3% 65%);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .selected .mode-number {
-  color: #60a5fa;
+  color: hsl(0 0% 100%);
 }
 
 .selected .mode-label {
-  color: #cbd5e1;
+  color: hsl(0 0% 100% / 0.8);
 }
 
-.selected .mode-penalty {
-  color: #94a3b8;
+.selected .mode-difficulty {
+  color: hsl(0 0% 100% / 0.7);
 }
 
 /* Mobile responsive */

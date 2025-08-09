@@ -1,5 +1,17 @@
 <template>
   <div class="game-board">
+    <div class="game-header">
+      <button class="restart-btn" @click="startNewGame" title="Restart">
+        ↻
+      </button>
+      <div class="bottles-matched">
+        {{ correctBottlesCount }} CORRECT BOTTLES 
+      </div>
+      <button class="tutorial-btn" @click="showTutorial" title="Tutorial">
+        ?
+      </button>
+    </div>
+
     <div v-if="DEBUG_MODE" class="debug-pattern">
       <h3>DEBUG: Hidden Pattern</h3>
       <div class="debug-colors">
@@ -10,11 +22,6 @@
           :style="{ backgroundColor: color }"
         ></div>
       </div>
-    </div>
-
-    <div class="game-info">
-      <div class="attempts">Attempts: {{ attempts }}/{{ MAX_ATTEMPTS }}</div>
-      <div class="score">Score: {{ currentScore }}</div>
     </div>
 
     <div class="bottle-grid" :style="{ gridTemplateColumns: `repeat(${gameMode}, 1fr)` }">
@@ -30,29 +37,71 @@
       />
     </div>
 
-    <div v-if="selectedBottles.length > 0 && selectedBottles.length < 2" class="selection-help">
-      Select {{ 2 - selectedBottles.length }} more bottle{{ selectedBottles.length === 1 ? '' : 's' }} to swap
+    <div class="selection-status">
+      <span v-if="selectedBottles.length === 0" class="status-text">
+        Select two bottles to swap
+      </span>
+      <span v-else-if="selectedBottles.length === 1" class="status-text">
+        Select one more bottle
+      </span>
+      <span v-else class="status-text ready">
+        Ready to swap!
+      </span>
+    </div>
+
+    <div class="action-buttons" v-if="canSwap">
+      <button class="swap-button" @click="performSwap">
+        Swap Bottles (Enter)
+      </button>
+    </div>
+
+    <div v-if="showTutorialModal" class="tutorial-overlay" @click="closeTutorial">
+      <div class="tutorial-modal" @click.stop>
+        <div class="tutorial-header">
+          <h3>How to Play</h3>
+          <button class="close-btn" @click="closeTutorial">×</button>
+        </div>
+        <div class="tutorial-content">
+          <div class="tutorial-step">
+            <span class="step-number">1</span>
+            <div class="step-text">
+              <strong>Goal:</strong> Arrange bottles to match the hidden pattern
+            </div>
+          </div>
+          <div class="tutorial-step">
+            <span class="step-number">2</span>
+            <div class="step-text">
+              <strong>Select:</strong> Click two bottles to select them
+            </div>
+          </div>
+          <div class="tutorial-step">
+            <span class="step-number">3</span>
+            <div class="step-text">
+              <strong>Swap:</strong> Click "Swap Bottles " or press Enter
+            </div>
+          </div>
+          <div class="tutorial-step">
+            <span class="step-number">4</span>
+            <div class="step-text">
+              <strong>Track:</strong> Watch the counter show correct positions
+            </div>
+          </div>
+        </div>
+        <button class="tutorial-close-btn" @click="closeTutorial">
+          Got it!
+        </button>
+      </div>
     </div>
 
     <div v-if="feedback" class="feedback" :class="feedback.type">
       {{ feedback.message }}
     </div>
 
-    <div class="action-buttons">
-      <button
-        class="swap-button"
-        :disabled="!canSwap"
-        @click="performSwap"
-        v-show="canSwap"
-      >
-        Swap Bottles ({{ selectedBottles.length }}/2)
-      </button>
-      
-      <button
-        class="new-game-button"
-        @click="startNewGame"
-      >
-        New Game
+    <div v-if="gameWon" class="victory-message">
+      <div class="victory-text">Puzzle Solved!</div>
+      <div class="victory-stats">{{ swapCount }} swaps used</div>
+      <button class="try-again-btn" @click="startNewGame">
+        Try Again
       </button>
     </div>
 
@@ -63,17 +112,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import Bottle from './Bottle.vue';
 import { useAnimations } from '../composables/useAnimations.js';
 import { useSounds } from '../composables/useSounds.js';
-import { 
-  LIQUID_COLORS, 
-  MODE_PENALTIES, 
-  MAX_ATTEMPTS, 
-  BASE_SCORE 
-} from '../assets/colors.js';
-// Generate random bottle shapes inline since bottleShapes was removed
+import { LIQUID_COLORS } from '../assets/colors.js';
+
 const getRandomBottleShape = () => {
   const shapes = ['wine', 'beer', 'champagne', 'whiskey', 'craft'];
   const randomIndex = Math.floor(Math.random() * shapes.length);
@@ -93,12 +137,12 @@ const emit = defineEmits(['game-won', 'game-lost']);
 const bottles = ref([]);
 const hiddenPattern = ref([]);
 const selectedBottles = ref([]);
-const attempts = ref(0);
-const currentScore = ref(BASE_SCORE);
+const swapCount = ref(0);
 const feedback = ref(null);
+const gameWon = ref(false);
+const showTutorialModal = ref(false);
 const bottleRefs = ref([]);
 
-// Debug mode (can be toggled in browser console)
 const DEBUG_MODE = ref(import.meta.env.DEV);
 
 // Composables
@@ -107,7 +151,14 @@ const { playSwap, playSubmit, playCorrect, playWin } = useSounds();
 
 // Computed properties
 const canSwap = computed(() => {
-  return selectedBottles.value.length === 2 && attempts.value < MAX_ATTEMPTS;
+  return selectedBottles.value.length === 2 && !gameWon.value;
+});
+
+const correctBottlesCount = computed(() => {
+  if (!hiddenPattern.value.length) return 0;
+  return bottles.value.reduce((count, bottle, index) => {
+    return count + (bottle.color === hiddenPattern.value[index] ? 1 : 0);
+  }, 0);
 });
 
 // Initialize game
@@ -131,9 +182,11 @@ const initializeGame = () => {
 
   // Reset game state
   selectedBottles.value = [];
-  attempts.value = 0;
-  currentScore.value = BASE_SCORE;
+  swapCount.value = 0;
   feedback.value = null;
+  gameWon.value = false;
+  
+  // Initial state - counter will be shown in the header
 };
 
 // Handle bottle selection - now supports two-step swap process
@@ -157,22 +210,16 @@ const handleBottleSelect = (index) => {
 
 // Bottle deselection is now handled in handleBottleSelect
 
-// Perform swap animation and logic
 const performSwap = async () => {
   if (selectedBottles.value.length !== 2) return;
-  if (attempts.value >= MAX_ATTEMPTS) return;
+  if (gameWon.value) return;
   
   const [index1, index2] = selectedBottles.value;
   
   console.log('Swapping bottles:', index1, index2);
   console.log('Before swap:', bottles.value[index1].color, bottles.value[index2].color);
   
-  // Count this as an attempt
-  attempts.value++;
-  
-  // Update score with penalty
-  const penalty = MODE_PENALTIES[props.gameMode];
-  currentScore.value = Math.max(0, currentScore.value - penalty);
+  swapCount.value++;
   
   // Get bottle elements
   const bottle1 = bottleRefs.value[index1];
@@ -219,69 +266,56 @@ const performSwap = async () => {
   }, 500); // Give time for animation to finish
 };
 
-// Auto-check pattern after every swap
 const autoCheckPattern = async () => {
-  // Calculate correct positions
   const correctPositions = bottles.value.reduce((count, bottle, index) => {
     return count + (bottle.color === hiddenPattern.value[index] ? 1 : 0);
   }, 0);
 
   console.log('Correct positions:', correctPositions, '/', props.gameMode);
 
-  // Check if won
   if (correctPositions === props.gameMode) {
     await handleWin();
     return;
   }
 
-  // Check if lost (max attempts reached)
-  if (attempts.value >= MAX_ATTEMPTS) {
-    await handleLoss();
-    return;
-  }
-
-  // Show progress feedback
+  // Show temporary feedback for swaps
   if (correctPositions > 0) {
     feedback.value = {
       type: 'info',
-      message: `${correctPositions} bottles in correct position`
+      message: `Nice! ${correctPositions} bottles in correct position`
     };
     playCorrect();
-  } else {
-    feedback.value = {
-      type: 'info', 
-      message: `Keep trying! ${MAX_ATTEMPTS - attempts.value} attempts left`
-    };
+    
+    setTimeout(() => {
+      feedback.value = null;
+    }, 2000);
   }
-
-  // Clear feedback after 3 seconds
-  setTimeout(() => {
-    feedback.value = null;
-  }, 3000);
 };
 
-// Handle win
 const handleWin = async () => {
-  // Play win sound
+  gameWon.value = true;
+  
   playWin();
 
-  // Win animation
   const bottleElements = bottleRefs.value.map(ref => ref.element).filter(Boolean);
   await winJiggleAnimation(bottleElements);
 
-  // Show win feedback
+
+
   feedback.value = {
     type: 'success',
-    message: `Congratulations! You solved it in ${attempts.value} attempts! Score: ${currentScore.value}`
+    message: `Puzzle solved in ${swapCount.value} swaps!`
   };
 
-  // Emit win event
   emit('game-won', {
-    attempts: attempts.value,
-    score: currentScore.value,
+    swaps: swapCount.value,
     pattern: hiddenPattern.value
   });
 };
+
+
+
+
 
 // Handle loss
 const handleLoss = async () => {
@@ -306,6 +340,14 @@ const startNewGame = () => {
   initializeGame();
 };
 
+const showTutorial = () => {
+  showTutorialModal.value = true;
+};
+
+const closeTutorial = () => {
+  showTutorialModal.value = false;
+};
+
 // Initialize on mount
 onMounted(() => {
   initializeGame();
@@ -314,7 +356,23 @@ onMounted(() => {
   if (import.meta.env.DEV) {
     window.DEBUG_MODE = DEBUG_MODE;
   }
+  
+  // Add keyboard event listener
+  document.addEventListener('keydown', handleKeydown);
 });
+
+// Cleanup on unmount
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown);
+});
+
+// Handle keyboard input
+const handleKeydown = (event) => {
+  if (event.key === 'Enter' && canSwap.value) {
+    event.preventDefault();
+    performSwap();
+  }
+};
 
 // Watch for game mode changes
 watch(() => props.gameMode, () => {
@@ -328,22 +386,327 @@ watch(() => props.gameMode, () => {
   flex-direction: column;
   align-items: center;
   gap: 2rem;
+  padding: 2rem 1rem;
+  min-height: 100vh;
+  background: hsl(224 71% 4%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: 2rem;
+}
+
+.restart-btn, .tutorial-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: calc(0.5rem - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  border: 1px solid hsl(215 27.9% 16.9%);
+  background: hsl(217.2 32.6% 17.5%);
+  color: hsl(213 31% 91%);
+  height: 2.25rem;
+  width: 2.25rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.restart-btn:hover, .tutorial-btn:hover {
+  background: hsl(217.2 32.6% 25%);
+  border-color: hsl(215 27.9% 25%);
+}
+
+.restart-btn:focus-visible, .tutorial-btn:focus-visible {
+  outline: 2px solid hsl(213 31% 91%);
+  outline-offset: 2px;
+}
+
+.bottles-matched {
+  font-size: 1rem;
+  font-weight: 600;
+  color: hsl(213 31% 91%);
+  letter-spacing: 0.025em;
+  background: hsl(217.2 32.6% 17.5%);
+  padding: 0.5rem 1rem;
+  border-radius: calc(0.5rem - 2px);
+  border: 1px solid hsl(215 27.9% 16.9%);
+}
+
+.bottle-grid {
+  display: grid;
+  gap: 1.5rem;
+  justify-content: center;
   padding: 2rem;
-  max-width: 800px;
-  margin: 0 auto;
+  background: hsl(217.2 32.6% 17.5%);
+  border-radius: 0.75rem;
+  border: 1px solid hsl(215 27.9% 16.9%);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+}
+
+.selection-status {
+  text-align: center;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-text {
+  color: hsl(215.4 16.3% 65%);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-text.ready {
+  color: hsl(142.1 76.2% 60%);
+  font-weight: 600;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+}
+
+.swap-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: calc(0.5rem - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  height: 2.5rem;
+  padding: 0 1rem;
+  background: hsl(142.1 76.2% 36.3%);
+  color: hsl(0 0% 100%);
+  border: none;
+  cursor: pointer;
+}
+
+.swap-button:hover {
+  background: hsl(142.1 76.2% 30%);
+}
+
+.swap-button:focus-visible {
+  outline: 2px solid hsl(142.1 76.2% 36.3%);
+  outline-offset: 2px;
+}
+
+.try-again-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: calc(0.5rem - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  height: 2.5rem;
+  padding: 0 1rem;
+  background: hsl(0 0% 100%);
+  color: hsl(222.2 84% 4.9%);
+  border: 1px solid hsl(214.3 31.8% 91.4%);
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.try-again-btn:hover {
+  background: hsl(217.2 32.6% 25%);
+  border-color: hsl(215 27.9% 25%);
+}
+
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.tutorial-modal {
+  background: hsl(217.2 32.6% 17.5%);
+  border-radius: 0.75rem;
+  border: 1px solid hsl(215 27.9% 16.9%);
+  max-width: 28rem;
+  width: 90%;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+}
+
+.tutorial-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  border-bottom: 1px solid hsl(215 27.9% 16.9%);
+}
+
+.tutorial-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: hsl(213 31% 91%);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: hsl(215.4 16.3% 65%);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: color 0.15s ease-in-out;
+}
+
+.close-btn:hover {
+  color: hsl(213 31% 91%);
+}
+
+.tutorial-content {
+  padding: 1.5rem;
+}
+
+.tutorial-step {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  align-items: flex-start;
+}
+
+.tutorial-step:last-child {
+  margin-bottom: 0;
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: hsl(142.1 76.2% 36.3%);
+  color: hsl(0 0% 100%);
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.step-text {
+  color: hsl(213 31% 91%);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.step-text strong {
+  color: hsl(142.1 76.2% 60%);
+  font-weight: 600;
+}
+
+.tutorial-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: calc(0.5rem - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease-in-out;
+  height: 2.5rem;
+  padding: 0 1rem;
+  background: hsl(142.1 76.2% 36.3%);
+  color: hsl(0 0% 100%);
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  margin: 0 1.5rem 1.5rem 1.5rem;
+}
+
+.tutorial-close-btn:hover {
+  background: hsl(142.1 76.2% 30%);
+}
+
+.feedback {
+  background: hsl(0 0% 100%);
+  color: hsl(222.2 84% 4.9%);
+  padding: 0.75rem 1rem;
+  border-radius: calc(0.5rem - 2px);
+  text-align: center;
+  font-weight: 500;
+  border: 1px solid hsl(214.3 31.8% 91.4%);
+  max-width: 24rem;
+  font-size: 0.875rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.feedback.success {
+  background: hsl(142.1 76.2% 36.3%);
+  color: hsl(0 0% 100%);
+  border-color: hsl(142.1 76.2% 36.3%);
+}
+
+.feedback.error {
+  background: hsl(0 84.2% 60.2%);
+  color: hsl(0 0% 100%);
+  border-color: hsl(0 84.2% 60.2%);
+}
+
+.victory-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  background: hsl(0 0% 100%);
+  color: hsl(222.2 84% 4.9%);
+  padding: 2rem;
+  border-radius: 0.75rem;
+  text-align: center;
+  border: 1px solid hsl(214.3 31.8% 91.4%);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  max-width: 24rem;
+}
+
+.victory-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: hsl(142.1 76.2% 36.3%);
+}
+
+.victory-stats {
+  font-size: 0.875rem;
+  color: hsl(215.4 16.3% 46.9%);
+  font-weight: 500;
 }
 
 .debug-pattern {
-  background: rgba(0, 0, 0, 0.8);
+  background: hsl(0 0% 100%);
   padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
+  border-radius: calc(0.5rem - 2px);
+  border: 1px solid hsl(214.3 31.8% 91.4%);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 
 .debug-pattern h3 {
-  color: #fbbf24;
+  color: hsl(222.2 84% 4.9%);
   margin: 0 0 0.5rem 0;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .debug-colors {
@@ -352,137 +715,10 @@ watch(() => props.gameMode, () => {
 }
 
 .debug-color {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid white;
-}
-
-.game-info {
-  display: flex;
-  gap: 2rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #f1f5f9;
-}
-
-.attempts {
-  color: #fbbf24;
-}
-
-.score {
-  color: #10b981;
-}
-
-.bottle-grid {
-  display: grid;
-  gap: 1rem;
-  padding: 2rem;
-  background: rgba(30, 41, 59, 0.3);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.feedback {
-  padding: 1rem 2rem;
-  border-radius: 8px;
-  font-weight: 600;
-  text-align: center;
-  min-height: 3rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.feedback.info {
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.feedback.success {
-  background: rgba(16, 185, 129, 0.2);
-  color: #6ee7b7;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.feedback.error {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.selection-help {
-  padding: 0.75rem 1.5rem;
-  background: rgba(59, 130, 246, 0.1);
-  color: #93c5fd;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 8px;
-  text-align: center;
-  font-weight: 500;
-  font-size: 0.9rem;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.check-button,
-.new-game-button,
-.swap-button {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 1rem;
-}
-
-.check-button {
-  background: #3b82f6;
-  color: white;
-}
-
-.check-button:hover:not(:disabled) {
-  background: #2563eb;
-  transform: translateY(-1px);
-}
-
-.check-button:disabled {
-  background: #64748b;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.new-game-button {
-  background: rgba(255, 255, 255, 0.1);
-  color: #f1f5f9;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.new-game-button:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-}
-
-.swap-button {
-  background: #10b981;
-  color: white;
-}
-
-.swap-button:hover:not(:disabled) {
-  background: #059669;
-  transform: translateY(-1px);
-}
-
-.swap-button:disabled {
-  background: #64748b;
-  cursor: not-allowed;
-  opacity: 0.6;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: calc(0.25rem - 1px);
+  border: 1px solid hsl(214.3 31.8% 91.4%);
 }
 
 .sr-only {
@@ -497,22 +733,20 @@ watch(() => props.gameMode, () => {
   border: 0;
 }
 
-/* Mobile responsive */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .game-board {
-    padding: 1rem;
-    gap: 1.5rem;
+    padding: 0.5rem;
+    gap: 1rem;
   }
   
   .bottle-grid {
+    gap: 1rem;
     padding: 1rem;
-    gap: 0.5rem;
   }
   
-  .game-info {
+  .game-header {
     flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
+    gap: 1rem;
   }
   
   .action-buttons {
@@ -520,10 +754,9 @@ watch(() => props.gameMode, () => {
     width: 100%;
   }
   
-  .check-button,
-  .new-game-button,
-  .swap-button {
+  .swap-button, .hint-button {
     width: 100%;
+    max-width: 300px;
   }
 }
 </style>

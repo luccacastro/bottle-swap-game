@@ -109,11 +109,13 @@ onMounted(() => {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: hsl(224 71% 4%);
   min-height: 100vh;
-  color: #f8fafc;
+  color: hsl(213 31% 91%);
   overflow-x: hidden;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 #app {
@@ -125,29 +127,24 @@ body {
 .app-header {
   text-align: center;
   padding: 2rem 1rem;
-  background: rgba(15, 23, 42, 0.8);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: hsl(224 71% 4%);
+  border-bottom: 1px solid hsl(215 27.9% 16.9%);
 }
 
 .app-title {
-  font-size: 2.5rem;
-  font-weight: 700;
+  font-size: 2.25rem;
+  font-weight: 600;
   margin: 0 0 0.5rem 0;
-  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: hsl(213 31% 91%);
   letter-spacing: -0.025em;
-  font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.2;
 }
 
 .app-subtitle {
-  font-size: 1.1rem;
-  color: #94a3b8;
+  font-size: 1rem;
+  color: hsl(215.4 16.3% 65%);
   margin: 0;
   font-weight: 400;
-  font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .app-main {

@@ -242,8 +242,8 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100px; /* Bigger bottles */
-  height: 250px; /* Bigger bottles */
+  width: 120px;
+  height: 280px;
   position: relative;
 }
 
